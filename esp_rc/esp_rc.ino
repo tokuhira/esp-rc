@@ -114,10 +114,20 @@ void setup(){
 		.onError([](ota_error_t error){Serial.printf("Error[%u]", error);})
 		.begin();
 
+  #ifdef ISOPWM
+    pinMode(I1,OUTPUT);
+    pinMode(I2,OUTPUT);
+    pinMode(I3,OUTPUT);
+    pinMode(I4,OUTPUT);
+	ledcSetup(I1PWM,PWM_FREQ,PWM_BIT);ledcAttachPin(PWM12,I1PWM);
+	ledcSetup(I3PWM,PWM_FREQ,PWM_BIT);ledcAttachPin(PWM34,I3PWM);
+    pinMode(NSTBY,OUTPUT);
+  #else
 	ledcSetup(I1PWM,PWM_FREQ,PWM_BIT);ledcAttachPin(I1,I1PWM);
 	ledcSetup(I2PWM,PWM_FREQ,PWM_BIT);ledcAttachPin(I2,I2PWM);
 	ledcSetup(I3PWM,PWM_FREQ,PWM_BIT);ledcAttachPin(I3,I3PWM);
 	ledcSetup(I4PWM,PWM_FREQ,PWM_BIT);ledcAttachPin(I4,I4PWM);
+  #endif
 }
 
 void loop(){
@@ -126,12 +136,23 @@ void loop(){
     dnsServer.processNextRequest();
   #endif
 	ws.cleanupClients();
+  #ifdef ISOPWM
+	digitalWrite(NSTBY,v[0]==0&&v[1]==0?LOW:HIGH);
+	//short brake
+	digitalWrite(I1,v[0]>0?HIGH:LOW);
+	digitalWrite(I2,v[0]<0?HIGH:LOW);
+	digitalWrite(I3,v[1]>0?HIGH:LOW);
+	digitalWrite(I4,v[1]<0?HIGH:LOW);
+	ledcWrite(I1PWM,abs(v[0]));
+	ledcWrite(I3PWM,abs(v[1]));
+  #else
   //short break
   ledcWrite(I1PWM,PWM_MAX-max(_Z,v[0]));ledcWrite(I2PWM,PWM_MAX-max(_Z,-v[0]));//if(v[0]>0){ledcWrite(I1PWM,PWM_MAX-v[0]);ledcWrite(I2PWM,PWM_MAX);}else{ledcWrite(I1PWM,PWM_MAX);ledcWrite(I2PWM,PWM_MAX+v[0]);}
   ledcWrite(I3PWM,PWM_MAX-max(_Z,v[1]));ledcWrite(I4PWM,PWM_MAX-max(_Z,-v[1]));//if(v[1]>0){ledcWrite(I3PWM,PWM_MAX-v[1]);ledcWrite(I4PWM,PWM_MAX);}else{ledcWrite(I3PWM,PWM_MAX);ledcWrite(I4PWM,PWM_MAX+v[1]);}
   //no break
 	//ledcWrite(I1PWM,min(0,-v[0]));ledcWrite(I2PWM,max(0,v[0]));//if(v[0]>0){ledcWrite(I1PWM,0);ledcWrite(I2PWM,v[0]);}else{ledcWrite(I1PWM,-v[0]);ledcWrite(I2PWM,0);}
 	//ledcWrite(I3PWM,min(0,-v[1]));ledcWrite(I4PWM,max(0,v[1]));//if(v[1]>0){ledcWrite(I3PWM,0);ledcWrite(I4PWM,v[1]);}else{ledcWrite(I3PWM,-v[1]);ledcWrite(I4PWM,0);}
+  #endif
   #ifdef STATLED
     if(ws.count()>0){
       ledcWrite(RPWM,(v[0]+PWM_MAX)/4);

@@ -1,6 +1,22 @@
+#define GEPARD
 #define REV2
 //#define CAPTIVE_PORTAL
 
+#ifdef GEPARD
+  // ESP32-S3 => TB6612
+  #define I1 5 // AIN1
+  #define I2 3 // AIN2
+  #define I3 7 // BIN1
+  #define I4 9 // BIN2
+
+  #define ISOPWM
+  #define PWM12 1  // PWMA
+  #define PWM34 43 // PWMB
+  #define NSTBY 44 // ~STBY
+
+  #define PWM_FREQ 39062.5
+  #define PWM_BIT 10
+#else
 #ifdef REV2
   #define I1 25
   #define I2 26
@@ -20,6 +36,7 @@
 // https://lang-ship.com/blog/work/esp32-pwm-max/
 #define PWM_FREQ 39062.5
 #define PWM_BIT 11
+#endif
 
 const char* ssid="esp_rc_proto";
 const char* pass="sazanka_";
