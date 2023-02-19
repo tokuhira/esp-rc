@@ -108,7 +108,7 @@ const char html[] PROGMEM=R"rawliteral(
         pos=[Math.atan2(...pos)-Math.PI*.75,Math.min(1,l/stick_style.width*2)];
 )rawliteral"
 #ifdef RCTANK
-R"(     ws_send([Math.min(1,Math.cos(pos[0])*Math.sqrt(2))*pos[1],Math.min(1,Math.sin(pos[0])*Math.sqrt(2))*pos[1]]);)"
+R"(     ws_send([Math.max(-1,Math.min(1,Math.cos(pos[0])*Math.sqrt(2)))*pos[1],Math.max(-1,Math.min(1,Math.sin(pos[0])*Math.sqrt(2)))*pos[1]]);)"
 #else
 R"(     ws_send([Math.cos(pos[0])*pos[1],Math.sin(pos[0])*pos[1]]);)"
 #endif
