@@ -3,6 +3,8 @@
 //#define CAPTIVE_PORTAL
 
 #ifdef GEPARD
+  #define RCTANK
+
   // ESP32-S3 => TB6612
   #define I1 5 // AIN1
   #define I2 3 // AIN2
@@ -104,7 +106,13 @@ const char html[] PROGMEM=R"rawliteral(
         stick.children[0].style.transform=`translate(calc(${pos[0]}px - 50%),calc(${pos[1]}px - 50%))`;
         //https://openrtm.org/openrtm/sites/default/files/6357/171108-04.pdf
         pos=[Math.atan2(...pos)-Math.PI*.75,Math.min(1,l/stick_style.width*2)];
-        ws_send([Math.cos(pos[0])*pos[1],Math.sin(pos[0])*pos[1]]);
+)rawliteral"
+#ifdef RCTANK
+R"(     ws_send([Math.min(1,Math.cos(pos[0])*Math.sqrt(2))*pos[1],Math.min(1,Math.sin(pos[0])*Math.sqrt(2))*pos[1]]);)"
+#else
+R"(     ws_send([Math.cos(pos[0])*pos[1],Math.sin(pos[0])*pos[1]]);)"
+#endif
+R"rawliteral(
         timer=setTimeout(()=>timer=0,50);
       };
 
