@@ -1,20 +1,20 @@
-#define GEPARD
+#define MBT23
 #define REV2
 //#define CAPTIVE_PORTAL
 
-#ifdef GEPARD
+#ifdef MBT23
   #define RCTANK
 
   // ESP32-S3 => TB6612
-  #define I1 5 // AIN1
-  #define I2 3 // AIN2
-  #define I3 7 // BIN1
-  #define I4 9 // BIN2
+  #define I1 41 // AIN1
+  #define I2 42 // AIN2
+  #define I3 39 // BIN1
+  #define I4 14 // BIN2
 
   #define ISOPWM
-  #define PWM12 1  // PWMA
-  #define PWM34 43 // PWMB
-  #define NSTBY 44 // ~STBY
+  #define PWM12 46 // PWMA
+  #define PWM34 12 // PWMB
+  #define NSTBY 40 // ~STBY
 
   #define PWM_FREQ 39062.5
   #define PWM_BIT 10
