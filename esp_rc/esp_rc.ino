@@ -1,3 +1,4 @@
+#include "util.h"
 #include <WiFi.h>
 #include <ArduinoOTA.h>
 #ifdef CAPTIVE_PORTAL
@@ -6,7 +7,7 @@
 #include <AsyncTCP.h>// https://github.com/me-no-dev/AsyncTCP
 #include <ESPAsyncWebServer.h>// https://github.com/me-no-dev/ESPAsyncWebServer
 
-#include "util.h"
+// PWM channels
 #define I1PWM 0
 #define I2PWM 1
 #define I3PWM 2
