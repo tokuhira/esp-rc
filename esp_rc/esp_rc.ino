@@ -1,20 +1,80 @@
-#include <WiFi.h>
-#include <ArduinoOTA.h>
+#include "util.h"
+#include <Wire.h>
+#include <Servo.h>
+#include <TM1637.h>// https://github.com/maxint-rd/TM16xx
+#include <TM16xxDisplay.h>
+#ifdef ESP32
+  #include <WiFi.h>
+  #include <AsyncTCP.h>// https://github.com/me-no-dev/AsyncTCP
+#elif ESP8266
+  #include <ESP8266WiFi.h>
+  #include <ESPAsyncTCP.h>// https://github.com/me-no-dev/ESPAsyncTCP
+#else
+  #error "ESPAsyncWebServer supports only Espressif ESP32 or ESP8266."
+#endif
+#include <ESPAsyncWebServer.h>// https://github.com/me-no-dev/ESPAsyncWebServer
+#ifdef ARDUINO_OTA
+  #include <ArduinoOTA.h>
+#endif
 #ifdef CAPTIVE_PORTAL
   #include <DNSServer.h>
 #endif
-#include <AsyncTCP.h>// https://github.com/me-no-dev/AsyncTCP
-#include <ESPAsyncWebServer.h>// https://github.com/me-no-dev/ESPAsyncWebServer
 
-#include "util.h"
-#define I1PWM 0
-#define I2PWM 1
-#define I3PWM 2
-#define I4PWM 3
-#ifdef STATLED
-  #define RPWM 4
-  #define GPWM 5
-#endif
+const int DRV_ADDR = 0x64;
+const int DRV_REG_CONTROL = 0;
+const int DRV_REG_FAULT   = 1;
+const int DRV_BIT_FAULT  = 0x01;
+const int DRV_BIT_OCP    = 0x02;
+const int DRV_BIT_UVLO   = 0x04;
+const int DRV_BIT_OTS    = 0x08;
+const int DRV_BIT_ILIMIT = 0x10;
+const int DRV_BIT_CLEAR  = 0x80;
+
+void drvReset() {
+  Wire.beginTransmission(DRV_ADDR);
+  Wire.write(DRV_REG_FAULT);
+  Wire.write(DRV_BIT_CLEAR);
+  Wire.endTransmission();
+}
+
+void drvControl(uint8_t vset, bool in2, bool in1) {
+  uint8_t control;
+
+  control = vset << 2;
+  if (in2) {
+    control |= 0x02;
+  }
+  if (in1) {
+    control |= 0x01;
+  }
+  Wire.beginTransmission(DRV_ADDR);
+  Wire.write(DRV_REG_CONTROL);
+  Wire.write(control);
+  Wire.endTransmission();
+}
+
+const long THROTTLE_MIN = -37; // -3.05V (-63 for full)
+const long THROTTLE_MAX =  37; //  3.05V ( 63 for full)
+const long NO_DRIVE_ABS =   5; // ignore between -5 and 5
+
+void drvThrottle(long value) {
+  if (NO_DRIVE_ABS < value && value <= THROTTLE_MAX) {
+    drvControl(value, false, true);
+  } else if (THROTTLE_MIN <= value && value < -NO_DRIVE_ABS) {
+    drvControl(-value, true, false);
+  } else {
+    drvControl(0, 0, 0);
+  }
+}
+
+Servo steering;
+const long STEERING_MIN = 30;
+const long STEERING_MAX = 150;
+
+TM1637 module(SGMT_DIO, SGMT_CLK);
+TM16xxDisplay display(&module, N_DIGITS);
+const long DISPLAY_MIN = -9;
+const long DISPLAY_MAX = 9;
 
 const IPAddress ip(192,168,1,1);
 const IPAddress subnet(255,255,255,0);
@@ -26,7 +86,7 @@ AsyncWebSocket ws("/ws");
 const long PWM_MAX=pow(2,PWM_BIT),_Z=0;
 const int ZPAD=1+(int)log10(PWM_MAX*2);
 
-long v[2]={0,0};//L,R
+long v[2]={0,0};// X:steering, Y:throttle
 
 void onEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventType type, void *arg, uint8_t *data, size_t len){
 	switch(type){
@@ -79,11 +139,6 @@ public:
 #endif
 
 void setup(){
-  #ifdef STATLED
-    ledcSetup(RPWM,PWM_FREQ,PWM_BIT);ledcAttachPin(RPIN,RPWM);
-    ledcSetup(GPWM,PWM_FREQ,PWM_BIT);ledcAttachPin(GPIN,GPWM);
-    ledcWrite(RPWM,PWM_MAX/2);
-  #endif
 	Serial.begin(115200);
 	delay(1000);
 
@@ -106,6 +161,8 @@ void setup(){
 	server.begin();
 	Serial.println("server started");
 
+  #ifdef ARDUINO_OTA
+  #ifdef ESP32
 	ArduinoOTA
 		.setPassword("sazanka_")
 		.onStart([](){Serial.printf("Start updating %s\n",ArduinoOTA.getCommand()==U_FLASH?"sketch":"filesystem");})
@@ -113,53 +170,32 @@ void setup(){
 		.onProgress([](unsigned int progress, unsigned int total){Serial.printf("Progress: %u%%\r",(progress/(total/100)));})
 		.onError([](ota_error_t error){Serial.printf("Error[%u]", error);})
 		.begin();
-
-  #ifdef ISOPWM
-    pinMode(I1,OUTPUT);
-    pinMode(I2,OUTPUT);
-    pinMode(I3,OUTPUT);
-    pinMode(I4,OUTPUT);
-	ledcSetup(I1PWM,PWM_FREQ,PWM_BIT);ledcAttachPin(PWM12,I1PWM);
-	ledcSetup(I3PWM,PWM_FREQ,PWM_BIT);ledcAttachPin(PWM34,I3PWM);
-    pinMode(NSTBY,OUTPUT);
-  #else
-	ledcSetup(I1PWM,PWM_FREQ,PWM_BIT);ledcAttachPin(I1,I1PWM);
-	ledcSetup(I2PWM,PWM_FREQ,PWM_BIT);ledcAttachPin(I2,I2PWM);
-	ledcSetup(I3PWM,PWM_FREQ,PWM_BIT);ledcAttachPin(I3,I3PWM);
-	ledcSetup(I4PWM,PWM_FREQ,PWM_BIT);ledcAttachPin(I4,I4PWM);
+  #elif ESP8266
+	ArduinoOTA.setPassword("sazanka_");
+	ArduinoOTA.onStart([](){Serial.printf("Start updating %s\n",ArduinoOTA.getCommand()==U_FLASH?"sketch":"filesystem");});
+	ArduinoOTA.onEnd([](){Serial.println("\nEnd");});
+	ArduinoOTA.onProgress([](unsigned int progress, unsigned int total){Serial.printf("Progress: %u%%\r",(progress/(total/100)));});
+	ArduinoOTA.onError([](ota_error_t error){Serial.printf("Error[%u]", error);});
+	ArduinoOTA.begin();
   #endif
+  #endif
+
+  Wire.begin();
+  steering.attach(SRV_GPIO);
+  drvReset();
+  drvControl(0, 0, 0); // neutral
 }
 
 void loop(){
+  #ifdef ARDUINO_OTA
 	ArduinoOTA.handle();
+  #endif
   #ifdef CAPTIVE_PORTAL
     dnsServer.processNextRequest();
   #endif
 	ws.cleanupClients();
-  #ifdef ISOPWM
-	digitalWrite(NSTBY,v[0]==0&&v[1]==0?LOW:HIGH);
-	//short brake
-	digitalWrite(I1,v[0]>0?HIGH:LOW);
-	digitalWrite(I2,v[0]<0?HIGH:LOW);
-	digitalWrite(I3,v[1]>0?HIGH:LOW);
-	digitalWrite(I4,v[1]<0?HIGH:LOW);
-	ledcWrite(I1PWM,abs(v[0]));
-	ledcWrite(I3PWM,abs(v[1]));
-  #else
-  //short break
-  ledcWrite(I1PWM,PWM_MAX-max(_Z,v[0]));ledcWrite(I2PWM,PWM_MAX-max(_Z,-v[0]));//if(v[0]>0){ledcWrite(I1PWM,PWM_MAX-v[0]);ledcWrite(I2PWM,PWM_MAX);}else{ledcWrite(I1PWM,PWM_MAX);ledcWrite(I2PWM,PWM_MAX+v[0]);}
-  ledcWrite(I3PWM,PWM_MAX-max(_Z,v[1]));ledcWrite(I4PWM,PWM_MAX-max(_Z,-v[1]));//if(v[1]>0){ledcWrite(I3PWM,PWM_MAX-v[1]);ledcWrite(I4PWM,PWM_MAX);}else{ledcWrite(I3PWM,PWM_MAX);ledcWrite(I4PWM,PWM_MAX+v[1]);}
-  //no break
-	//ledcWrite(I1PWM,min(0,-v[0]));ledcWrite(I2PWM,max(0,v[0]));//if(v[0]>0){ledcWrite(I1PWM,0);ledcWrite(I2PWM,v[0]);}else{ledcWrite(I1PWM,-v[0]);ledcWrite(I2PWM,0);}
-	//ledcWrite(I3PWM,min(0,-v[1]));ledcWrite(I4PWM,max(0,v[1]));//if(v[1]>0){ledcWrite(I3PWM,0);ledcWrite(I4PWM,v[1]);}else{ledcWrite(I3PWM,-v[1]);ledcWrite(I4PWM,0);}
-  #endif
-  #ifdef STATLED
-    if(ws.count()>0){
-      ledcWrite(RPWM,(v[0]+PWM_MAX)/4);
-      ledcWrite(GPWM,(v[1]+PWM_MAX)/4);
-    }else{
-      ledcWrite(RPWM,0);
-      ledcWrite(GPWM,(sin(millis()/1000.*3.1415)*.5+.5)*PWM_MAX/2);
-    }
-  #endif
+
+  steering.write(map(v[0], -PWM_MAX, PWM_MAX, STEERING_MIN, STEERING_MAX));
+  drvThrottle(map(v[1], -PWM_MAX, PWM_MAX, THROTTLE_MIN, THROTTLE_MAX));
+  display.printf("%2ld%2ld\n", map(v[0], -PWM_MAX, PWM_MAX, DISPLAY_MIN, DISPLAY_MAX), map(v[1], -PWM_MAX, PWM_MAX, DISPLAY_MIN, DISPLAY_MAX));
 }

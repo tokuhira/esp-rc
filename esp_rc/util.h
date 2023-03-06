@@ -1,44 +1,16 @@
-#define GEPARD
-#define REV2
+//#define ARDUINO_OTA
 //#define CAPTIVE_PORTAL
 
-#ifdef GEPARD
-  #define RCTANK
+// ESP8266 on RC buggy
+  // I2C SDA PIN 4    // DRV8830 via I2C
+  // I2C SCL PIN 5    // DRV8830 via I2C
+#define SRV_GPIO 12   // PWM for stearing servo
+#define STAT_LED 13   // LED of status on board
+#define SGMT_DIO 14   // TM1637 for digits display
+#define SGMT_CLK 15   // TM1637 for digits display
+#define N_DIGITS 4    // TOF-3407HS-B: 4 digits anode common
 
-  // ESP32-S3 => TB6612
-  #define I1 5 // AIN1
-  #define I2 3 // AIN2
-  #define I3 7 // BIN1
-  #define I4 9 // BIN2
-
-  #define ISOPWM
-  #define PWM12 1  // PWMA
-  #define PWM34 43 // PWMB
-  #define NSTBY 44 // ~STBY
-
-  #define PWM_FREQ 39062.5
-  #define PWM_BIT 10
-#else
-#ifdef REV2
-  #define I1 25
-  #define I2 26
-  #define I3 33
-  #define I4 32
-
-  #define STATLED
-  #define RPIN 14
-  #define GPIN 27
-#else
-  #define I1 18
-  #define I2 19
-  #define I3 17
-  #define I4 16
-#endif
-
-// https://lang-ship.com/blog/work/esp32-pwm-max/
-#define PWM_FREQ 39062.5
-#define PWM_BIT 11
-#endif
+#define PWM_BIT 8
 
 const char* ssid="esp_rc_proto";
 const char* pass="sazanka_";
@@ -105,15 +77,8 @@ const char html[] PROGMEM=R"rawliteral(
         pos=pos.map(x=>x*Math.min(stick_style.width*.5,l)/l);
         stick.children[0].style.transform=`translate(calc(${pos[0]}px - 50%),calc(${pos[1]}px - 50%))`;
         //https://openrtm.org/openrtm/sites/default/files/6357/171108-04.pdf
-        pos=[Math.atan2(...pos)-Math.PI*.75,Math.min(1,l/stick_style.width*2)];
-)rawliteral"
-#ifdef RCTANK
-R"(     ws_send([Math.max(-1,Math.min(1,Math.cos(pos[0])*Math.sqrt(2)))*pos[1],Math.max(-1,Math.min(1,Math.sin(pos[0])*Math.sqrt(2)))*pos[1]]);)"
-#else
-R"(     ws_send([Math.cos(pos[0])*pos[1],Math.sin(pos[0])*pos[1]]);)"
-#endif
-R"rawliteral(
-        timer=setTimeout(()=>timer=0,50);
+        pos=[Math.atan2(...pos),Math.min(1,l/stick_style.width*2)];
+        ws_send([Math.sin(pos[0])*pos[1],-Math.cos(pos[0])*pos[1]]);
       };
 
       window.onload=ws_init;
