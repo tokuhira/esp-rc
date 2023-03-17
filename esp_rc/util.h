@@ -5,19 +5,21 @@
 #ifdef GEPARD
   #define RCTANK
 
-  // ESP32-S3 => TB6612
-  #define I1 5 // AIN1
-  #define I2 3 // AIN2
-  #define I3 7 // BIN1
-  #define I4 9 // BIN2
+  // XIAO ESP32C3 => TB6612
+  #define I1 D6 // AIN1
+  #define I2 D5 // AIN2
+  #define I3 D7 // BIN1
+  #define I4 D8 // BIN2
 
   #define ISOPWM
-  #define PWM12 1  // PWMA
-  #define PWM34 43 // PWMB
-  #define NSTBY 44 // ~STBY
+  #define PWM12 D4  // PWMA
+  #define PWM34 D9  // PWMB
+  #define NSTBY D10 // ~STBY
 
   #define PWM_FREQ 39062.5
   #define PWM_BIT 10
+
+  const char* ssid="esp_rc_gepard";
 #else
 #ifdef REV2
   #define I1 25
@@ -38,9 +40,9 @@
 // https://lang-ship.com/blog/work/esp32-pwm-max/
 #define PWM_FREQ 39062.5
 #define PWM_BIT 11
-#endif
 
 const char* ssid="esp_rc_proto";
+#endif
 const char* pass="sazanka_";
 // QR
 // WIFI:S:<SSID>;T:<WEP|WPA|無記入>;P:<パスワード>;H:<true|false|無記入>;
